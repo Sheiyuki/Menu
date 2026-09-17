@@ -97,8 +97,16 @@
         }
 
         .btn-add { background-color: var(--secondary-color); color: white; }
+        .btn-delete-mode { background-color: #ff7675; color: white; }
+        .btn-delete-active { background-color: #d63031; color: white; animation: pulse 1.5s infinite; }
         .btn-save { background-color: var(--primary-color); color: white; }
         .btn-print { background-color: #2d3436; color: white; }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.03); }
+            100% { transform: scale(1); }
+        }
 
         .btn:hover {
             transform: translateY(-2px);
@@ -169,11 +177,105 @@
             background-color: #fafafa;
         }
 
-        /* Pembagian Lebar Kolom (Tanpa Kolom Aksi) */
+        /* Tampilan saat Mode Hapus Aktif */
+        body.delete-mode-active tr.row-item {
+            cursor: pointer;
+        }
+
+        /* Blok Warna Mencolok untuk Baris Terpilih (Kalimat Tetap Terbaca Jelas) */
+        tr.row-selected-delete td {
+            background-color: #ff9f43 !important;
+            color: #ffffff !important;
+            font-weight: 800 !important;
+            text-shadow: 0px 1px 2px rgba(0, 0, 0, 0.4);
+        }
+
+        tr.row-selected-delete td.col-no {
+            color: #ffffff !important;
+        }
+
         .col-no { width: 40px; text-align: center; font-weight: 700; color: #b2bec3; }
         .col-nama { width: 30%; }
         .col-makanan { width: 35%; }
         .col-minuman { width: 35%; }
+
+        /* Custom Centered Modal Overlay & Box */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.6);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .modal-box {
+            background: #ffffff;
+            padding: 24px 28px;
+            border-radius: 20px;
+            max-width: 420px;
+            width: 90%;
+            text-align: center;
+            box-shadow: 0 15px 30px rgba(0,0,0,0.2);
+            transform: scale(0.8);
+            transition: transform 0.2s ease;
+            border: 3px solid var(--border-color);
+        }
+
+        .modal-overlay.active .modal-box {
+            transform: scale(1);
+        }
+
+        .modal-icon {
+            font-size: 2.8rem;
+            margin-bottom: 10px;
+        }
+
+        .modal-title {
+            font-size: 1.3rem;
+            font-weight: 800;
+            color: var(--text-color);
+            margin-bottom: 8px;
+        }
+
+        .modal-message {
+            font-size: 0.95rem;
+            color: #636e72;
+            font-weight: 600;
+            margin-bottom: 20px;
+            line-height: 1.4;
+        }
+
+        .modal-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .btn-modal {
+            padding: 9px 18px;
+            border-radius: 10px;
+            border: none;
+            font-weight: 800;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+
+        .btn-modal-confirm { background-color: #ff7675; color: white; }
+        .btn-modal-cancel { background-color: #dfe6e9; color: var(--text-color); }
+        .btn-modal-ok { background-color: var(--secondary-color); color: white; }
 
         @media (max-width: 480px) {
             body { padding: 10px 5px; }
@@ -211,8 +313,11 @@
         </div>
 
         <div class="actions no-print">
-            <button class="btn btn-add" onclick="addRow()">
+            <button class="btn btn-add" id="btnAdd" onclick="addRow()">
                 <i class="fa-solid fa-plus"></i> Tambah
+            </button>
+            <button class="btn btn-delete-mode" id="btnDelete" onclick="handleDeleteButtonClick()">
+                <i class="fa-solid fa-trash"></i> HAPUS
             </button>
             <button class="btn btn-save" onclick="manualSave()">
                 <i class="fa-solid fa-floppy-disk"></i> SIMPAN
@@ -240,6 +345,16 @@
         </div>
     </div>
 
+    <!-- Custom Modal Popup (Tengah Layar) -->
+    <div class="modal-overlay" id="customModal">
+        <div class="modal-box">
+            <div class="modal-icon" id="modalIcon">⚠️</div>
+            <div class="modal-title" id="modalTitle">Konfirmasi</div>
+            <div class="modal-message" id="modalMessage">Pesan notifikasi di sini...</div>
+            <div class="modal-buttons" id="modalButtons"></div>
+        </div>
+    </div>
+
     <script>
         const firebaseConfig = {
             apiKey: "AIzaSyA51cMtWZuIwnDpkklcR-WNnOn9QlCoLJc",
@@ -264,6 +379,10 @@
         let autosaveTimer = null;
         let isEditing = false;
 
+        // State Pengelolaan Mode Hapus
+        let isDeleteMode = false;
+        let selectedIndicesToDelete = new Set();
+
         function renderTable() {
             orders.sort((a, b) => a.nama.localeCompare(b.nama, 'id', { sensitivity: 'base' }));
 
@@ -272,23 +391,165 @@
 
             orders.forEach((order, index) => {
                 const tr = document.createElement('tr');
+                tr.className = 'row-item';
+                
+                if (selectedIndicesToDelete.has(index)) {
+                    tr.classList.add('row-selected-delete');
+                }
+
                 tr.innerHTML = `
                     <td class="col-no">${index + 1}</td>
-                    <td class="editable col-nama" contenteditable="true" 
+                    <td class="editable col-nama" contenteditable="${!isDeleteMode}" 
                         onfocus="isEditing = true" 
                         onblur="isEditing = false"
                         oninput="updateLocalData(${index}, 'nama', this.innerText)">${order.nama}</td>
-                    <td class="editable col-makanan" contenteditable="true" 
+                    <td class="editable col-makanan" contenteditable="${!isDeleteMode}" 
                         onfocus="isEditing = true" 
                         onblur="isEditing = false"
                         oninput="updateLocalData(${index}, 'makanan', this.innerText)">${order.makanan}</td>
-                    <td class="editable col-minuman" contenteditable="true" 
+                    <td class="editable col-minuman" contenteditable="${!isDeleteMode}" 
                         onfocus="isEditing = true" 
                         onblur="isEditing = false"
                         oninput="updateLocalData(${index}, 'minuman', this.innerText)">${order.minuman}</td>
                 `;
+
+                // Klik Baris saat Mode Hapus untuk Menandai/Membatalkan Baris
+                tr.addEventListener('click', (e) => {
+                    if (isDeleteMode) {
+                        e.preventDefault();
+                        toggleSelectRow(index);
+                    }
+                });
+
                 tbody.appendChild(tr);
             });
+
+            updateDeleteButtonUI();
+        }
+
+        function handleDeleteButtonClick() {
+            if (!isDeleteMode) {
+                // Masuk ke Mode Hapus
+                isDeleteMode = true;
+                document.body.classList.add('delete-mode-active');
+                renderTable();
+            } else {
+                if (selectedIndicesToDelete.size === 0) {
+                    // Keluar dari Mode Hapus jika tidak ada baris yang dipilih
+                    exitDeleteMode();
+                } else {
+                    // Eksekusi Proses Hapus dengan Konfirmasi 2 Tingkat
+                    startFirstDeleteConfirmation();
+                }
+            }
+        }
+
+        function toggleSelectRow(index) {
+            if (selectedIndicesToDelete.has(index)) {
+                selectedIndicesToDelete.delete(index);
+            } else {
+                selectedIndicesToDelete.add(index);
+            }
+            renderTable();
+        }
+
+        function updateDeleteButtonUI() {
+            const btnDelete = document.getElementById('btnDelete');
+            if (isDeleteMode) {
+                btnDelete.classList.remove('btn-delete-mode');
+                btnDelete.classList.add('btn-delete-active');
+                if (selectedIndicesToDelete.size > 0) {
+                    btnDelete.innerHTML = `<i class="fa-solid fa-trash-can"></i> HAPUS (${selectedIndicesToDelete.size})`;
+                } else {
+                    btnDelete.innerHTML = `<i class="fa-solid fa-xmark"></i> BATAL HAPUS`;
+                }
+            } else {
+                btnDelete.classList.remove('btn-delete-active');
+                btnDelete.classList.add('btn-delete-mode');
+                btnDelete.innerHTML = `<i class="fa-solid fa-trash"></i> HAPUS`;
+            }
+        }
+
+        function exitDeleteMode() {
+            isDeleteMode = false;
+            selectedIndicesToDelete.clear();
+            document.body.classList.remove('delete-mode-active');
+            renderTable();
+        }
+
+        /* 1. Pop-Up Konfirmasi Pertama di Tengah Layar */
+        function startFirstDeleteConfirmation() {
+            const count = selectedIndicesToDelete.size;
+            showCustomModal(
+                "❓",
+                "Konfirmasi Penghapusan",
+                `Apakah Anda yakin ingin menghapus <b>${count} baris</b> yang telah ditandai?`,
+                [
+                    { text: "Batal", class: "btn-modal-cancel", onClick: closeModal },
+                    { text: "Lanjutkan", class: "btn-modal-confirm", onClick: startSecondDeleteConfirmation }
+                ]
+            );
+        }
+
+        /* 2. Pop-Up Konfirmasi Kedua di Tengah Layar */
+        function startSecondDeleteConfirmation() {
+            closeModal();
+            setTimeout(() => {
+                showCustomModal(
+                    "⚠️",
+                    "Peringatan Terakhir!",
+                    "Tindakan ini tidak dapat dibatalkan. Baris terpilih akan dihapus permanen!",
+                    [
+                        { text: "Batalkan", class: "btn-modal-cancel", onClick: closeModal },
+                        { text: "Hapus Sekarang", class: "btn-modal-confirm", onClick: executeDeletion }
+                    ]
+                );
+            }, 200);
+        }
+
+        /* 3. Eksekusi Penghapusan Data & Pop-Up Notifikasi Berhasil di Tengah Layar */
+        function executeDeletion() {
+            closeModal();
+
+            // Hapus baris terpilih dari array
+            orders = orders.filter((_, index) => !selectedIndicesToDelete.has(index));
+            saveToLocalStorage();
+            exitDeleteMode();
+            triggerAutosave();
+
+            setTimeout(() => {
+                showCustomModal(
+                    "✅",
+                    "Penghapusan Berhasil!",
+                    "Baris terpilih telah berhasil dihapus dari daftar.",
+                    [
+                        { text: "OK", class: "btn-modal-ok", onClick: closeModal }
+                    ]
+                );
+            }, 200);
+        }
+
+        function showCustomModal(icon, title, messageHTML, buttons) {
+            document.getElementById('modalIcon').innerHTML = icon;
+            document.getElementById('modalTitle').innerText = title;
+            document.getElementById('modalMessage').innerHTML = messageHTML;
+
+            const buttonsContainer = document.getElementById('modalButtons');
+            buttonsContainer.innerHTML = '';
+
+            buttons.forEach(btnConfig => {
+                const btn = document.createElement('button');
+                btn.className = `btn-modal ${btnConfig.class}`;
+                btn.innerHTML = btnConfig.text;
+                btn.onclick = btnConfig.onClick;
+                buttonsContainer.appendChild(btn);
+            });
+
+            document.getElementById('customModal').classList.add('active');
+        }
+
+        function closeModal() {
+            document.getElementById('customModal').classList.remove('active');
         }
 
         function updateLocalData(index, field, value) {
@@ -327,7 +588,12 @@
                 statusEl.style.color = '#2ecc71';
 
                 if (showAlert) {
-                    alert("✅ Data pemesanan berhasil disimpan ke Cloud Firebase & diurutkan A-Z!");
+                    showCustomModal(
+                        "💾",
+                        "Penyimpanan Berhasil!",
+                        "Data pemesanan berhasil disimpan ke Cloud Firebase!",
+                        [{ text: "OK", class: "btn-modal-ok", onClick: closeModal }]
+                    );
                 }
             } catch (error) {
                 console.error("Firebase Error: ", error);
@@ -336,7 +602,12 @@
                 statusEl.style.color = '#3498db';
 
                 if (showAlert) {
-                    alert("⚠️ Data tersimpan di memori lokal HP/Browser.");
+                    showCustomModal(
+                        "💾",
+                        "Tersimpan di Memori Lokal",
+                        "Data tersimpan di perangkat ini.",
+                        [{ text: "OK", class: "btn-modal-ok", onClick: closeModal }]
+                    );
                 }
             }
         }
@@ -346,6 +617,7 @@
         }
 
         function addRow() {
+            if (isDeleteMode) exitDeleteMode();
             orders.push({ nama: "", makanan: "", minuman: "" });
             saveToLocalStorage();
             renderTable();
@@ -362,7 +634,7 @@
             renderTable();
 
             db.collection("orders").doc("latest_menu").onSnapshot((doc) => {
-                if (!isEditing && doc.exists && doc.data().items) {
+                if (!isEditing && !isDeleteMode && doc.exists && doc.data().items) {
                     orders = doc.data().items;
                     saveToLocalStorage();
                     renderTable();
