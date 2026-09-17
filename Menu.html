@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pemesanan Menu Makanan 📝✨</title>
+    <!-- Google Fonts & FontAwesome Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Firebase SDK (Compat Version agar kompatibel langsung tanpa bundler) -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
+    <style>
+        :root {
+            --bg-color: #f7f9fc;
+            --card-bg: #ffffff;
+            --primary-color: #ff6b6b;
+            --secondary-color: #4ecdc4;
+            --accent-color: #ffe66d;
+            --text-color: #2d3436;
+            --border-color: #dfe6e9;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Nunito', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            padding: 30px 15px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 900px;
+            background: var(--card-bg);
+            padding: 25px 30px;
+            border-radius: 20px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+            border: 2px solid #f1f2f6;
+        }
+
+        /* Header Style */
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 25px;
+            border-bottom: 3px dashed var(--accent-color);
+            padding-bottom: 15px;
+        }
+
+        .header-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .header-title h1 {
+            font-size: 1.8rem;
+            font-weight: 800;
+            color: var(--primary-color);
+        }
+
+        .header-title i {
+            font-size: 2rem;
+            color: var(--primary-color);
+        }
+
+        /* Actions / Buttons */
+        .actions {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 10px 18px;
+            border: none;
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 0.95rem;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+
+        .btn-add { background-color: var(--secondary-color); color: white; }
+        .btn-save { background-color: var(--primary-color); color: white; }
+        .btn-print { background-color: #2d3436; color: white; }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            opacity: 0.9;
+        }
+
+        .btn-delete {
+            background: #ff7675;
+            color: white;
+            border: none;
+            padding: 6px 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+
+        /* Flexible Responsive Table */
+        .table-wrapper {
+            overflow-x: auto;
+            border-radius: 12px;
+            border: 2px solid var(--border-color);
+        }
+
+        table {
+            width: max-content;
+            min-width: 100%;
+            table-layout: auto;
+            border-collapse: collapse;
+            background: white;
+        }
+
+        th, td {
+            padding: 14px 18px;
+            text-align: left;
+            white-space: nowrap;
+        }
+
+        th {
+            background-color: #fff2f2;
+            color: var(--primary-color);
+            font-weight: 800;
+            font-size: 1rem;
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        td {
+            border-bottom: 1px solid var(--border-color);
+            font-weight: 600;
+        }
+
+        td.editable {
+            outline: none;
+            cursor: text;
+            transition: background 0.2s;
+        }
+
+        td.editable:focus {
+            background-color: #e8f8f5;
+            border-radius: 6px;
+            box-shadow: inset 0 0 0 2px var(--secondary-color);
+        }
+
+        tr:nth-child(even) td {
+            background-color: #fafafa;
+        }
+
+        .col-no {
+            width: 60px;
+            text-align: center;
+            font-weight: 700;
+            color: #b2bec3;
+        }
+
+        /* Format Cetak khusus A4 dan Hitam Putih */
+        @media print {
+            @page {
+                size: A4 portrait;
+                margin: 15mm;
+            }
+
+            body {
+                background: white !important;
+                color: black !important;
+                padding: 0 !important;
+            }
+
+            .container {
+                box-shadow: none !important;
+                border: none !important;
+                max-width: 100% !important;
+                width: 100% !important;
+                padding: 0 !important;
+            }
+
+            .no-print {
+                display: none !important;
+            }
+
+            .header {
+                border-bottom: 2px solid black !important;
+                margin-bottom: 20px !important;
+            }
+
+            .header-title h1 {
+                color: black !important;
+            }
+
+            table {
+                width: 100% !important;
+                border-collapse: collapse !important;
+                filter: grayscale(100%) !important;
+            }
+
+            th, td {
+                border: 1px solid black !important;
+                color: black !important;
+                background: transparent !important;
+                padding: 8px 12px !important;
+            }
+
+            th {
+                font-weight: bold !important;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <div class="header-title">
+                <i class="fa-solid fa-utensils"></i>
+                <h1>Daftar Pemesanan Menu</h1>
+            </div>
+            <span class="no-print" style="font-size: 1.5rem;">🍳</span>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="actions no-print">
+            <button class="btn btn-add" onclick="addRow()">
+                <i class="fa-solid fa-plus"></i> Tambah Baris
+            </button>
+            <button class="btn btn-save" onclick="saveData()">
+                <i class="fa-solid fa-floppy-disk"></i> SIMPAN
+            </button>
+            <button class="btn btn-print" onclick="window.print()">
+                <i class="fa-solid fa-print"></i> PRINT
+            </button>
+        </div>
+
+        <!-- Table -->
+        <div class="table-wrapper">
+            <table id="orderTable">
+                <thead>
+                    <tr>
+                        <th class="col-no">No.</th>
+                        <th><i class="fa-solid fa-user no-print"></i> Nama</th>
+                        <th><i class="fa-solid fa-burger no-print"></i> Makanan</th>
+                        <th><i class="fa-solid fa-mug-hot no-print"></i> Minuman</th>
+                        <th class="no-print" style="width: 50px;">Aksi</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody">
+                    <!-- Data baris dirender oleh JavaScript -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // Konfigurasi Firebase milik Anda
+        const firebaseConfig = {
+            apiKey: "AIzaSyA51cMtWZuIwnDpkklcR-WNnOn9QlCoLJc",
+            authDomain: "menu-5959b.firebaseapp.com",
+            databaseURL: "https://menu-5959b-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "menu-5959b",
+            storageBucket: "menu-5959b.firebasestorage.app",
+            messagingSenderId: "923952291645",
+            appId: "1:923952291645:web:63c78ed9cefc55eb566f54"
+        };
+
+        // Inisialisasi Firebase
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        // Data lokal sementara (akan otomatis tertimpa data realtime dari Firebase)
+        let orders = [
+            { nama: "Budi", makanan: "Nasi Goreng", minuman: "Es Teh Manis" },
+            { nama: "Andi", makanan: "Mie Ayam", minuman: "Jus Jeruk" },
+            { nama: "Citra", makanan: "Ayam Bakar", minuman: "Air Mineral" }
+        ];
+
+        // Render Tabel + Urutkan A-Z Berdasarkan Nama
+        function renderTable() {
+            orders.sort((a, b) => a.nama.localeCompare(b.nama, 'id', { sensitivity: 'base' }));
+
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = '';
+
+            orders.forEach((order, index) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="col-no">${index + 1}</td>
+                    <td class="editable" contenteditable="true" onblur="updateLocalData(${index}, 'nama', this.innerText)">${order.nama}</td>
+                    <td class="editable" contenteditable="true" onblur="updateLocalData(${index}, 'makanan', this.innerText)">${order.makanan}</td>
+                    <td class="editable" contenteditable="true" onblur="updateLocalData(${index}, 'minuman', this.innerText)">${order.minuman}</td>
+                    <td class="no-print" style="text-align: center;">
+                        <button class="btn-delete" onclick="deleteRow(${index})">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function updateLocalData(index, field, value) {
+            orders[index][field] = value.trim();
+        }
+
+        function addRow() {
+            orders.push({ nama: "", makanan: "", minuman: "" });
+            renderTable();
+            const rows = document.querySelectorAll('#tableBody tr');
+            if (rows.length > 0) {
+                const lastRowNama = rows[rows.length - 1].children[1];
+                lastRowNama.focus();
+            }
+        }
+
+        function deleteRow(index) {
+            orders.splice(index, 1);
+            renderTable();
+        }
+
+        // Simpan Data ke Firestore
+        async function saveData() {
+            renderTable();
+
+            try {
+                await db.collection("orders").doc("latest_menu").set({
+                    items: orders,
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                alert("Data pemesanan berhasil disimpan ke Firebase & diurutkan secara A-Z!");
+            } catch (error) {
+                console.error("Error saving: ", error);
+                alert("Gagal menyimpan data: " + error.message);
+            }
+        }
+
+        // Ambil Data Paling Update Secara Realtime Saat Halaman Dibuka
+        function initRealtimeData() {
+            db.collection("orders").doc("latest_menu").onSnapshot((doc) => {
+                if (doc.exists && doc.data().items) {
+                    orders = doc.data().items;
+                }
+                renderTable();
+            }, (error) => {
+                console.error("Error realtime listener: ", error);
+                renderTable();
+            });
+        }
+
+        // Dijalankan langsung saat halaman pertama kali terbuka
+        window.onload = () => {
+            initRealtimeData();
+        };
+    </script>
+</body>
+</html>
