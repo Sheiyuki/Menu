@@ -105,16 +105,6 @@
             opacity: 0.9;
         }
 
-        .btn-delete {
-            background: #ff7675;
-            color: white;
-            border: none;
-            padding: 5px 8px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 0.78rem;
-        }
-
         .autosave-status {
             font-size: 0.8rem;
             font-weight: 700;
@@ -179,11 +169,11 @@
             background-color: #fafafa;
         }
 
-        .col-no { width: 38px; text-align: center; font-weight: 700; color: #b2bec3; }
-        .col-nama { width: 28%; }
-        .col-makanan { width: 32%; }
-        .col-minuman { width: 32%; }
-        .col-aksi { width: 40px; text-align: center; }
+        /* Pembagian Lebar Kolom (Tanpa Kolom Aksi) */
+        .col-no { width: 40px; text-align: center; font-weight: 700; color: #b2bec3; }
+        .col-nama { width: 30%; }
+        .col-makanan { width: 35%; }
+        .col-minuman { width: 35%; }
 
         @media (max-width: 480px) {
             body { padding: 10px 5px; }
@@ -192,8 +182,7 @@
             .header-title i { font-size: 1.3rem; }
             .btn { padding: 8px 10px; font-size: 0.8rem; }
             th, td { padding: 8px 4px; font-size: 0.82rem; }
-            .col-no { width: 30px; }
-            .col-aksi { width: 34px; }
+            .col-no { width: 32px; }
             .autosave-status { width: 100%; margin-left: 0; margin-top: 5px; }
         }
 
@@ -244,7 +233,6 @@
                         <th class="col-nama"><i class="fa-solid fa-user no-print"></i> Nama</th>
                         <th class="col-makanan"><i class="fa-solid fa-burger no-print"></i> Makanan</th>
                         <th class="col-minuman"><i class="fa-solid fa-mug-hot no-print"></i> Minuman</th>
-                        <th class="col-aksi no-print">Aksi</th>
                     </tr>
                 </thead>
                 <tbody id="tableBody"></tbody>
@@ -272,14 +260,11 @@
             { nama: "Citra", makanan: "Ayam Bakar Madu", minuman: "Air Mineral" }
         ];
 
-        // 1. Ambil data cadangan dari LocalStorage terlebih dahulu agar saat refresh data tidak kembali ke awal
         let orders = JSON.parse(localStorage.getItem("saved_menu_orders")) || defaultOrders;
-
         let autosaveTimer = null;
         let isEditing = false;
 
         function renderTable() {
-            // Urutkan A-Z berdasarkan Nama
             orders.sort((a, b) => a.nama.localeCompare(b.nama, 'id', { sensitivity: 'base' }));
 
             const tbody = document.getElementById('tableBody');
@@ -301,11 +286,6 @@
                         onfocus="isEditing = true" 
                         onblur="isEditing = false"
                         oninput="updateLocalData(${index}, 'minuman', this.innerText)">${order.minuman}</td>
-                    <td class="no-print col-aksi" style="text-align: center;">
-                        <button class="btn-delete" onclick="deleteRow(${index})">
-                            <i class="fa-solid fa-trash"></i>
-                        </button>
-                    </td>
                 `;
                 tbody.appendChild(tr);
             });
@@ -317,7 +297,6 @@
             triggerAutosave();
         }
 
-        // Simpan langsung ke LocalStorage perangkat
         function saveToLocalStorage() {
             localStorage.setItem("saved_menu_orders", JSON.stringify(orders));
         }
@@ -333,7 +312,6 @@
             }, 1000);
         }
 
-        // Simpan ke Firebase Cloud Firestore
         async function pushToFirebase(showAlert = false) {
             try {
                 orders.sort((a, b) => a.nama.localeCompare(b.nama, 'id', { sensitivity: 'base' }));
@@ -358,7 +336,7 @@
                 statusEl.style.color = '#3498db';
 
                 if (showAlert) {
-                    alert("⚠️ Data tersimpan di memori lokal HP/Browser.\n(Catatan Firebase: Cek kembali tab Rules di Firebase Console).");
+                    alert("⚠️ Data tersimpan di memori lokal HP/Browser.");
                 }
             }
         }
@@ -380,16 +358,8 @@
             }
         }
 
-        function deleteRow(index) {
-            orders.splice(index, 1);
-            saveToLocalStorage();
-            renderTable();
-            triggerAutosave();
-        }
-
-        // Mengambil data update dari Firebase saat halaman dibuka
         function initRealtimeData() {
-            renderTable(); // Tampilkan data LocalStorage dulu secara cepat
+            renderTable();
 
             db.collection("orders").doc("latest_menu").onSnapshot((doc) => {
                 if (!isEditing && doc.exists && doc.data().items) {
